@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, Polyline } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -74,6 +74,17 @@ function FitBounds({ bounds }: { bounds: [number, number][] | null }) {
       map.fitBounds(bounds, { padding: [50, 50], animate: true });
     }
   }, [bounds, map]);
+  return null;
+}
+
+function MapEventsHelper({ onMapClick }: { onMapClick?: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      if (onMapClick) {
+        onMapClick(e.latlng.lat, e.latlng.lng);
+      }
+    },
+  });
   return null;
 }
 
@@ -155,6 +166,8 @@ interface MapProps {
   reviews?: Review[];
   nextTurnPoint?: [number, number] | null;
   recenterKey?: number;
+  onMapClick?: (lat: number, lng: number) => void;
+  pickedPoint?: [number, number] | null;
 }
 
 export default function Map({
@@ -168,12 +181,15 @@ export default function Map({
   reviews = [],
   nextTurnPoint = null,
   recenterKey = 0,
+  onMapClick,
+  pickedPoint = null,
 }: MapProps) {
   const defaultCenter: [number, number] = [10.0159, 76.3419]; // Kochi, Kerala
   const routeColors = ["#4F46E5", "#0D9488", "#E11D48"]; // Indigo, Teal, Rose
 
   const startIcon = createPinIcon("#16a34a", "Start");
   const endIcon = createPinIcon("#dc2626", "End");
+  const pickedIcon = createPinIcon("#8b5cf6", "Picked");
   const userLocationIcon = createUserLocationIcon();
   const nextTurnIcon = createNextTurnIcon();
 
@@ -277,6 +293,10 @@ export default function Map({
 
         <FlyToLocation position={position} recenterKey={recenterKey} />
         <FitBounds bounds={bounds} />
+        <MapEventsHelper onMapClick={onMapClick} />
+        {pickedPoint && (
+          <Marker position={pickedPoint} icon={pickedIcon} />
+        )}
       </MapContainer>
     </div>
   );

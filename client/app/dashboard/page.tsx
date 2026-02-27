@@ -358,6 +358,8 @@ export default function DashboardPage() {
   // Issues / Reviews State
   const [showReportModal, setShowReportModal] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [isPickingLocation, setIsPickingLocation] = useState(false);
+  const [pickedLocation, setPickedLocation] = useState<{ lat: number, lng: number } | null>(null);
 
   const fetchReviews = async () => {
     const { data, error } = await supabase
@@ -801,6 +803,16 @@ export default function DashboardPage() {
           reviews={reviews}
           nextTurnPoint={nextTurnPoint}
           recenterKey={recenterKey}
+          onMapClick={(lat, lng) => {
+            if (isPickingLocation) {
+              setPickedLocation({ lat, lng });
+              // We don't auto-close the picker mode here in case they want to adjust it,
+              // or they can just click "Done" in the banner. Let's just auto-return to modal:
+              setIsPickingLocation(false);
+              setShowReportModal(true);
+            }
+          }}
+          pickedPoint={pickedLocation ? [pickedLocation.lat, pickedLocation.lng] : null}
         />
       </div>
 
@@ -811,11 +823,30 @@ export default function DashboardPage() {
         onLiveLocationClick={handleFreeTrackingToggle}
       />
 
+      {/* Picking Location Banner */}
+      {isPickingLocation && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[2000] flex flex-col items-center gap-3 animate-bounce">
+          <div className="bg-white/95 backdrop-blur-md px-6 py-3 rounded-full shadow-2xl border border-emerald-200 flex items-center gap-3">
+            <span className="text-xl">📍</span>
+            <span className="text-emerald-800 font-bold tracking-wide">Tap anywhere on the map</span>
+          </div>
+          <button
+            onClick={() => {
+              setIsPickingLocation(false);
+              setShowReportModal(true);
+            }}
+            className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-full shadow-lg hover:bg-gray-800 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {/* Floating Mascot — bottom left, above sidebar button */}
       <div className="absolute bottom-24 left-4 z-[1000] flex flex-col items-start gap-1 pointer-events-none">
         {/* Speech bubble */}
         <div
-          className="px-3 py-1.5 rounded-2xl rounded-bl-none text-xs font-semibold text-indigo-900 shadow-lg"
+          className="px-3 py-1.5 rounded-2xl rounded-bl-none text-sm font-semibold text-indigo-900 shadow-lg"
           style={{
             background: "rgba(255,255,255,0.92)",
             backdropFilter: "blur(8px)",
@@ -1002,11 +1033,14 @@ export default function DashboardPage() {
       )}
 
       {/* Bottom Action Bar */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3">
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] w-[95%] max-w-[400px] flex justify-center gap-2.5">
         {/* Flag a Hazard button */}
         <button
-          onClick={() => setShowReportModal(true)}
-          className="text-emerald-700 font-bold bg-white border border-emerald-200 shadow-xl rounded-full px-6 py-3.5 hover:bg-emerald-50 active:scale-95 transition-all whitespace-nowrap"
+          onClick={() => {
+            setPickedLocation(null);
+            setShowReportModal(true);
+          }}
+          className="flex-1 text-emerald-700 font-bold bg-white border border-emerald-200 shadow-xl rounded-full py-3.5 hover:bg-emerald-50 active:scale-95 transition-all text-sm tracking-wide"
         >
           Report an Issue
         </button>
@@ -1014,17 +1048,23 @@ export default function DashboardPage() {
         {/* Chart My Path button */}
         <button
           onClick={() => setShowJourneyPanel(true)}
-          className="text-emerald-700 font-bold bg-white border border-emerald-200 shadow-xl rounded-full px-6 py-3.5 hover:bg-emerald-50 active:scale-95 transition-all whitespace-nowrap"
+          className="flex-1 text-emerald-700 font-bold bg-white border border-emerald-200 shadow-xl rounded-full py-3.5 hover:bg-emerald-50 active:scale-95 transition-all text-sm tracking-wide"
         >
-          Where do u wanna go?
+          Where are you going?
         </button>
       </div>
 
       <ReportIssueModal
-        isOpen={showReportModal}
+        isOpen={showReportModal || isPickingLocation}
+        isHidden={isPickingLocation}
         onClose={() => setShowReportModal(false)}
         userId={userId || ""}
         onSuccess={fetchReviews}
+        onStartPicker={() => {
+          setShowReportModal(false);
+          setIsPickingLocation(true);
+        }}
+        pickedLocation={pickedLocation}
       />
     </main>
   );
