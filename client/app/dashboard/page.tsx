@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import type { RouteOption } from "./Map";
+import { supabase } from "../utils/supabase";
 
 const Map = dynamic(() => import("./Map"), {
   ssr: false,
@@ -129,6 +130,18 @@ function LocationAutocomplete({
 }
 
 export default function DashboardPage() {
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [needsProfile, setNeedsProfile] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [profileForm, setProfileForm] = useState({
+    full_name: "",
+    email: "",
+    phone_number: "",
+    about_me: "",
+  });
+  const [submittingProfile, setSubmittingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
   const [location, setLocation] = useState<[number, number] | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
@@ -144,6 +157,61 @@ export default function DashboardPage() {
   const [routes, setRoutes] = useState<RouteOption[]>([]);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
   const [mapBounds, setMapBounds] = useState<[number, number][] | null>(null);
+
+  useEffect(() => {
+    const checkProfile = async () => {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        setProfileLoading(false);
+        return;
+      }
+
+      setUserId(session.user.id);
+
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .single();
+
+      if (error || !profile) {
+        setNeedsProfile(true);
+        setProfileForm((prev) => ({
+          ...prev,
+          full_name: session.user.user_metadata?.full_name || "",
+          email: session.user.email || "",
+        }));
+      }
+      setProfileLoading(false);
+    };
+    checkProfile();
+  }, []);
+
+  const handleProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId) return;
+
+    setSubmittingProfile(true);
+    setProfileError(null);
+
+    const { error } = await supabase.from("profiles").insert([
+      {
+        user_id: userId,
+        full_name: profileForm.full_name,
+        email: profileForm.email,
+        phone_number: profileForm.phone_number,
+        about_me: profileForm.about_me,
+      },
+    ]);
+
+    if (error) {
+      setProfileError(error.message);
+      setSubmittingProfile(false);
+    } else {
+      setNeedsProfile(false);
+      setProfileLoading(false);
+    }
+  };
 
   // Clean up the geolocation watch
   useEffect(() => {
@@ -305,6 +373,145 @@ export default function DashboardPage() {
     setMapBounds(null);
     setInputResetKey(k => k + 1); // Remount inputs to reset typed text
   };
+
+  if (profileLoading) {
+    return (
+      <div className="flex w-full h-screen items-center justify-center bg-gray-900" style={{ fontFamily: "var(--font-josefin-sans), 'Josefin Sans', sans-serif" }}>
+        <div className="flex flex-col items-center gap-4">
+          <span className="loader" />
+          <p className="text-white/80 animate-pulse font-medium tracking-wide">
+            Loading dashboard...
+          </p>
+        </div>
+        <style>{`
+          .loader {
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #10b981;
+            border-radius: 50%;
+            display: inline-block;
+            animation: spin 0.8s linear infinite;
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  if (needsProfile) {
+    return (
+      <main className="relative min-h-screen w-full flex items-center justify-center bg-gray-900">
+        <div className="absolute inset-0 z-0">
+          <img src="/bgimg.jpeg" alt="Background" className="w-full h-full object-cover object-center" />
+          <div className="absolute inset-0 bg-black/70" />
+        </div>
+
+        <div
+          className="relative z-10 flex flex-col items-center gap-8 px-8 py-10 rounded-3xl"
+          style={{
+            background: "rgba(255,255,255,0.07)",
+            backdropFilter: "blur(18px)",
+            WebkitBackdropFilter: "blur(18px)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            boxShadow: "0 8px 40px rgba(0,0,0,0.4)",
+            minWidth: "300px",
+            maxWidth: "480px",
+            width: "90vw",
+            fontFamily: "var(--font-josefin-sans), 'Josefin Sans', sans-serif",
+          }}
+        >
+          <div className="flex flex-col items-center gap-1 text-center">
+            <span className="text-4xl text-emerald-400">🌿</span>
+            <h1 className="text-3xl font-bold text-white tracking-wide">Complete Profile</h1>
+            <p className="text-sm text-white/70 mt-1 font-medium">
+              Tell us a bit about yourself to get started
+            </p>
+          </div>
+
+          <form onSubmit={handleProfileSubmit} className="w-full flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-white/90 text-[13px] font-semibold tracking-wider uppercase">Full Name</label>
+              <input
+                type="text"
+                required
+                value={profileForm.full_name}
+                onChange={(e) => setProfileForm(p => ({ ...p, full_name: e.target.value }))}
+                className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition-all font-light"
+                placeholder="John Doe"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-white/90 text-[13px] font-semibold tracking-wider uppercase">Email</label>
+              <input
+                type="email"
+                required
+                value={profileForm.email}
+                onChange={(e) => setProfileForm(p => ({ ...p, email: e.target.value }))}
+                className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-white/70 placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition-all font-light opacity-80 cursor-not-allowed"
+                placeholder="name@example.com"
+                readOnly
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-white/90 text-[13px] font-semibold tracking-wider uppercase">Phone Number</label>
+              <input
+                type="tel"
+                value={profileForm.phone_number}
+                onChange={(e) => setProfileForm(p => ({ ...p, phone_number: e.target.value }))}
+                className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition-all font-light"
+                placeholder="+1 234 567 890"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-white/90 text-[13px] font-semibold tracking-wider uppercase">About Me</label>
+              <textarea
+                value={profileForm.about_me}
+                onChange={(e) => setProfileForm(p => ({ ...p, about_me: e.target.value }))}
+                className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition-all font-light min-h-[100px] resize-y"
+                placeholder="I love community safety..."
+              />
+            </div>
+
+            {profileError && (
+              <p className="text-red-400 text-sm font-medium text-center bg-red-500/10 py-2 rounded-lg">{profileError}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={submittingProfile}
+              className="mt-6 w-full bg-gradient-to-r from-emerald-400 to-green-500 hover:from-emerald-300 hover:to-green-400 text-gray-900 font-bold text-[15px] uppercase tracking-wider rounded-xl py-3.5 shadow-lg shadow-emerald-500/20 transition-all transform active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100 flex justify-center items-center gap-2"
+            >
+              {submittingProfile ? (
+                <span className="loader-btn" />
+              ) : (
+                "Complete Profile"
+              )}
+            </button>
+          </form>
+        </div>
+        <style>{`
+          .loader-btn {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #1f2937;
+            border-top-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            animation: spin 0.7s linear infinite;
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </main>
+    );
+  }
 
   return (
     <main className="relative w-full h-screen overflow-hidden font-sans">
