@@ -355,6 +355,10 @@ export default function DashboardPage() {
   const preAnnouncedRef = useRef(false);
   const arrivedRef = useRef(false);
 
+  // SOS live-tracking refs
+  const sosSessionIdRef = useRef<string | null>(null);
+  const sosWatchIdRef = useRef<number | null>(null);
+
   // Issues / Reviews State
   const [showReportModal, setShowReportModal] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -413,6 +417,7 @@ export default function DashboardPage() {
   useEffect(() => {
     return () => {
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      if (sosWatchIdRef.current !== null) navigator.geolocation.clearWatch(sosWatchIdRef.current);
       if (typeof window !== "undefined" && window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
@@ -741,6 +746,82 @@ export default function DashboardPage() {
     }
   };
 
+  // ─── Emergency SOS (live tracking via Supabase) ────────────────────────────
+  const openSOSWhatsApp = (trackingUrl: string) => {
+    const recipient = "918078580755";
+    const message = encodeURIComponent(
+      `🚨 EMERGENCY! I'm in danger, please help me immediately!\n\nTrack my LIVE location (updates as I move):\n${trackingUrl}`
+    );
+    window.open(`https://wa.me/${recipient}?text=${message}`, "_blank");
+  };
+
+  const startSOSTracking = async (initialLat: number, initialLng: number) => {
+    // Insert a new session row; Supabase returns the generated UUID
+    const { data, error } = await supabase
+      .from("sos_sessions")
+      .insert({ lat: initialLat, lng: initialLng })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      console.error("SOS session insert failed", error);
+      return null;
+    }
+
+    const sessionId: string = data.id;
+    sosSessionIdRef.current = sessionId;
+
+    // Keep the row updated as the user moves
+    if (sosWatchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(sosWatchIdRef.current);
+    }
+    const wid = navigator.geolocation.watchPosition(
+      (pos) => {
+        supabase
+          .from("sos_sessions")
+          .update({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+          .eq("id", sessionId)
+          .then(() => {});
+      },
+      null,
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
+    );
+    sosWatchIdRef.current = wid;
+
+    return sessionId;
+  };
+
+  const handleEmergency = () => {
+    const origin = window.location.origin;
+
+    const proceed = async (lat: number, lng: number) => {
+      const sessionId = await startSOSTracking(lat, lng);
+      const trackingUrl = sessionId
+        ? `${origin}/track/${sessionId}`
+        : `https://maps.google.com/?q=${lat},${lng}`;
+      openSOSWhatsApp(trackingUrl);
+    };
+
+    const fallbackNoGps = () => {
+      const recipient = "918078580755";
+      const message = encodeURIComponent(
+        `🚨 EMERGENCY! I'm in danger, please help me immediately!\n\n(GPS unavailable — could not share location)`
+      );
+      window.open(`https://wa.me/${recipient}?text=${message}`, "_blank");
+    };
+
+    if (location) {
+      proceed(location[0], location[1]);
+      return;
+    }
+    if (!navigator.geolocation) { fallbackNoGps(); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => proceed(pos.coords.latitude, pos.coords.longitude),
+      fallbackNoGps,
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  };
+
   // ─── Derived navigation values ─────────────────────────────────────────────
   const activeRoute = getActiveRoute();
   const isNavigating = selectedRouteIndex !== null && isTracking && activeRoute?.steps && activeRoute.steps.length > 0;
@@ -842,11 +923,21 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Floating Mascot — bottom left, above sidebar button */}
-      <div className="absolute bottom-24 left-4 z-[1000] flex flex-col items-start gap-1 pointer-events-none">
+      {/* Emergency + Mascot — bottom left */}
+      <div className="absolute bottom-24 left-4 z-[1000] flex flex-col items-start gap-2">
+        {/* Emergency SOS Button */}
+        <button
+          onClick={handleEmergency}
+          title="Emergency SOS — send WhatsApp live-location alert"
+          className="w-12 h-12 rounded-full bg-red-600 hover:bg-red-700 active:scale-90 flex items-center justify-center ring-2 ring-white ring-offset-1 shadow-2xl transition-transform"
+          style={{ boxShadow: "0 0 0 4px rgba(220,38,38,0.3), 0 4px 20px rgba(220,38,38,0.55)", animation: "sosPulse 2.2s ease-in-out infinite" }}
+        >
+          <Image src="/emergency.png" alt="Emergency SOS" width={28} height={28} className="object-contain drop-shadow-md" />
+        </button>
+
         {/* Speech bubble */}
         <div
-          className="px-3 py-1.5 rounded-2xl rounded-bl-none text-sm font-semibold text-indigo-900 shadow-lg"
+          className="pointer-events-none px-3 py-1.5 rounded-2xl rounded-bl-none text-sm font-semibold text-indigo-900 shadow-lg"
           style={{
             background: "rgba(255,255,255,0.92)",
             backdropFilter: "blur(8px)",
@@ -859,7 +950,7 @@ export default function DashboardPage() {
           Stay safe out there! 🦉
         </div>
         {/* Mascot */}
-        <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-white shadow-xl ml-1">
+        <div className="pointer-events-none w-12 h-12 rounded-full overflow-hidden ring-2 ring-white shadow-xl ml-1">
           <Image
             src="/mascot.png"
             alt="Vazhikaatti Owl Mascot"
@@ -869,6 +960,12 @@ export default function DashboardPage() {
           />
         </div>
       </div>
+      <style>{`
+        @keyframes sosPulse {
+          0%, 100% { box-shadow: 0 0 0 3px rgba(220,38,38,0.35), 0 4px 16px rgba(220,38,38,0.5); }
+          50% { box-shadow: 0 0 0 8px rgba(220,38,38,0.15), 0 4px 24px rgba(220,38,38,0.6); }
+        }
+      `}</style>
 
       {/* Floating UI Container */}
       <div className="absolute top-4 right-10 z-[1000] flex flex-col items-end gap-3">
