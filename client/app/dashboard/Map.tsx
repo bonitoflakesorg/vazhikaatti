@@ -137,6 +137,7 @@ export default function Map({
         center={position || defaultCenter}
         zoom={position ? 16 : 13}
         scrollWheelZoom={true}
+        zoomControl={false}
         className="w-full h-full"
       >
         <TileLayer
