@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import type { RouteOption, RouteStep } from "./Map";
 import { supabase } from "../utils/supabase";
 import ReportIssueModal from "./ReportIssueModal";
@@ -346,6 +347,7 @@ export default function DashboardPage() {
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [distToNextTurn, setDistToNextTurn] = useState<number | null>(null);
   const [arrived, setArrived] = useState(false);
+  const [recenterKey, setRecenterKey] = useState(0);
 
   // Refs to avoid stale closures in navigation logic
   const voiceMutedRef = useRef(false);
@@ -798,6 +800,7 @@ export default function DashboardPage() {
           endPoint={destPlace ? [destPlace.lat, destPlace.lon] : null}
           reviews={reviews}
           nextTurnPoint={nextTurnPoint}
+          recenterKey={recenterKey}
         />
       </div>
 
@@ -808,57 +811,53 @@ export default function DashboardPage() {
         onLiveLocationClick={handleFreeTrackingToggle}
       />
 
+      {/* Floating Mascot — bottom left, above sidebar button */}
+      <div className="absolute bottom-24 left-4 z-[1000] flex flex-col items-start gap-1 pointer-events-none">
+        {/* Speech bubble */}
+        <div
+          className="px-3 py-1.5 rounded-2xl rounded-bl-none text-xs font-semibold text-indigo-900 shadow-lg"
+          style={{
+            background: "rgba(255,255,255,0.92)",
+            backdropFilter: "blur(8px)",
+            border: "1px solid rgba(99,102,241,0.18)",
+            boxShadow: "0 4px 16px rgba(99,102,241,0.18)",
+            maxWidth: "140px",
+            lineHeight: "1.4",
+          }}
+        >
+          Stay safe out there! 🦉
+        </div>
+        {/* Mascot */}
+        <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-white shadow-xl ml-1">
+          <Image
+            src="/mascot.png"
+            alt="Vazhikaatti Owl Mascot"
+            width={48}
+            height={48}
+            className="object-cover w-full h-full"
+          />
+        </div>
+      </div>
+
       {/* Floating UI Container */}
       <div className="absolute top-4 right-10 z-[1000] flex flex-col items-end gap-3">
-        {/* Top controls row: live tracking icon + journey trigger */}
+        {/* Top controls row: re-center trigger + journey trigger */}
         <div className="flex items-center gap-2">
-          {/* Live Tracking Toggle Icon */}
+          {/* Re-center Map Button */}
           <button
-            onClick={handleFreeTrackingToggle}
-            disabled={loadingLocation}
-            title={isTracking ? "Stop Live Tracking" : "Start Live Tracking"}
-            className={`relative w-11 h-11 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-90 border-2 ${loadingLocation
-              ? "bg-gray-100 border-gray-300 cursor-not-allowed"
-              : isTracking
-                ? "bg-red-600 border-red-400 hover:bg-red-700"
-                : "bg-white border-gray-200 hover:bg-gray-50"
-              }`}
+            onClick={() => {
+              if (location) {
+                setRecenterKey(k => k + 1);
+              } else {
+                handleFreeTrackingToggle();
+              }
+            }}
+            title="Re-center map"
+            className="flex items-center justify-center w-12 h-12 bg-white hover:bg-gray-50 text-gray-700 rounded-2xl shadow-xl transition-all active:scale-95 border border-gray-200"
           >
-            {loadingLocation ? (
-              <svg className="animate-spin h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-            ) : isTracking ? (
-              /* Stop icon (square) — like stopping a recording */
-              <>
-                {/* Pulsing ring */}
-                <span className="absolute inset-0 rounded-full animate-ping bg-red-400 opacity-40" />
-                <svg className="w-4 h-4 text-white relative z-10" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="5" y="5" width="14" height="14" rx="2" />
-                </svg>
-              </>
-            ) : (
-              /* Record dot icon */
-              <svg className="w-5 h-5 text-red-500" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="12" cy="12" r="7" />
-                <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
-              </svg>
-            )}
+            <Image src="/recentre.png" alt="Recenter Map" width={24} height={24} className="opacity-80 object-contain" />
           </button>
 
-          {/* Start Journey Trigger */}
-          {!showJourneyPanel && (
-            <button
-              onClick={() => setShowJourneyPanel(true)}
-              className="px-5 py-3 bg-white hover:bg-gray-100 text-gray-900 font-bold rounded-2xl shadow-xl transition-all active:scale-95 flex items-center gap-2 border border-gray-200"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-              </svg>
-              Chart My Path
-            </button>
-          )}
         </div>
 
         {/* Journey Control Panel */}
@@ -1007,34 +1006,17 @@ export default function DashboardPage() {
         {/* Flag a Hazard button */}
         <button
           onClick={() => setShowReportModal(true)}
-          className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl font-bold text-sm tracking-wide shadow-2xl transition-all active:scale-95 hover:scale-[1.03]"
-          style={{
-            background: "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)",
-            color: "#fff",
-            boxShadow: "0 8px 24px rgba(239,68,68,0.35)",
-          }}
+          className="text-emerald-700 font-bold bg-white border border-emerald-200 shadow-xl rounded-full px-6 py-3.5 hover:bg-emerald-50 active:scale-95 transition-all whitespace-nowrap"
         >
-          <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-            <line x1="4" y1="22" x2="4" y2="15" />
-          </svg>
-          Flag a Hazard
+          Report an Issue
         </button>
 
         {/* Chart My Path button */}
         <button
           onClick={() => setShowJourneyPanel(true)}
-          className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl font-bold text-sm tracking-wide shadow-2xl transition-all active:scale-95 hover:scale-[1.03]"
-          style={{
-            background: "linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)",
-            color: "#fff",
-            boxShadow: "0 8px 24px rgba(99,102,241,0.35)",
-          }}
+          className="text-emerald-700 font-bold bg-white border border-emerald-200 shadow-xl rounded-full px-6 py-3.5 hover:bg-emerald-50 active:scale-95 transition-all whitespace-nowrap"
         >
-          <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 12h4l3-9 4 18 3-9h4" />
-          </svg>
-          Chart My Path
+          Where do u wanna go?
         </button>
       </div>
 

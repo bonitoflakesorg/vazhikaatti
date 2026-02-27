@@ -42,22 +42,28 @@ export type Review = {
   created_at: string;
 };
 
-function FlyToLocation({ position }: { position: [number, number] | null }) {
+function FlyToLocation({ position, recenterKey }: { position: [number, number] | null, recenterKey?: number }) {
   const map = useMap();
   const isFirstFly = useRef(true);
+  const prevRecenterKey = useRef(recenterKey);
 
   useEffect(() => {
     if (position) {
       if (isFirstFly.current) {
         map.flyTo(position, 16, { animate: true, duration: 1.5 });
         isFirstFly.current = false;
+      } else if (recenterKey !== prevRecenterKey.current) {
+        // Explicit recenter trigger
+        map.flyTo(position, 16, { animate: true, duration: 1 });
+        prevRecenterKey.current = recenterKey;
       } else {
+        // Normal position update pan
         map.panTo(position, { animate: true });
       }
     } else {
       isFirstFly.current = true;
     }
-  }, [position, map]);
+  }, [position, map, recenterKey]);
   return null;
 }
 
@@ -148,6 +154,7 @@ interface MapProps {
   endPoint?: [number, number] | null;
   reviews?: Review[];
   nextTurnPoint?: [number, number] | null;
+  recenterKey?: number;
 }
 
 export default function Map({
@@ -160,6 +167,7 @@ export default function Map({
   endPoint = null,
   reviews = [],
   nextTurnPoint = null,
+  recenterKey = 0,
 }: MapProps) {
   const defaultCenter: [number, number] = [10.0159, 76.3419]; // Kochi, Kerala
   const routeColors = ["#4F46E5", "#0D9488", "#E11D48"]; // Indigo, Teal, Rose
@@ -267,7 +275,7 @@ export default function Map({
           );
         })}
 
-        <FlyToLocation position={position} />
+        <FlyToLocation position={position} recenterKey={recenterKey} />
         <FitBounds bounds={bounds} />
       </MapContainer>
     </div>
