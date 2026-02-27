@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -14,11 +14,22 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-function FlyToLocation({ position }: { position: L.LatLngExpression | null }) {
+function FlyToLocation({ position }: { position: [number, number] | null }) {
   const map = useMap();
+  const isFirstFly = useRef(true);
+
   useEffect(() => {
     if (position) {
-      map.flyTo(position, 16, { animate: true, duration: 2 });
+      if (isFirstFly.current) {
+        map.flyTo(position, 16, { animate: true, duration: 1.5 });
+        isFirstFly.current = false;
+      } else {
+        // Just pan smoothly if we are already tracking
+        map.panTo(position, { animate: true });
+      }
+    } else {
+      // Reset if position is cleared
+      isFirstFly.current = true;
     }
   }, [position, map]);
   return null;

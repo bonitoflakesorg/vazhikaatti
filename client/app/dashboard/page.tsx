@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 
 // Dynamically import Map to avoid SSR window issues with leaflet
@@ -16,28 +16,52 @@ const Map = dynamic(() => import("./Map"), {
 export default function DashboardPage() {
   const [location, setLocation] = useState<[number, number] | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(false);
+  const [isTracking, setIsTracking] = useState(false);
+  const [watchId, setWatchId] = useState<number | null>(null);
 
-  const handleEnableLocation = () => {
+  // Clean up the geolocation watch when the component unmounts
+  useEffect(() => {
+    return () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [watchId]);
+
+  const handleToggleLocation = () => {
     if (!navigator.geolocation) {
       alert("Geolocation is not supported by your browser");
       return;
     }
 
+    if (isTracking && watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      setIsTracking(false);
+      setWatchId(null);
+      setLoadingLocation(false);
+      return;
+    }
+
     setLoadingLocation(true);
-    navigator.geolocation.getCurrentPosition(
+    const id = navigator.geolocation.watchPosition(
       (position) => {
         setLocation([position.coords.latitude, position.coords.longitude]);
         setLoadingLocation(false);
+        setIsTracking(true);
       },
       (error) => {
         console.error("Error getting location: ", error);
         alert("Could not get your location. Please check browser permissions.");
         setLoadingLocation(false);
+        setIsTracking(false);
       },
       {
         enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 10000,
       }
     );
+    setWatchId(id);
   };
 
   return (
@@ -50,11 +74,13 @@ export default function DashboardPage() {
       {/* Floating Button */}
       <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 z-[1000] flex flex-col items-center">
         <button
-          onClick={handleEnableLocation}
-          disabled={loadingLocation}
-          className="px-6 py-3 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-bold rounded-full shadow-2xl transition-all active:scale-95 disabled:opacity-70 flex items-center gap-2 backdrop-blur-md"
+          onClick={handleToggleLocation}
+          className={`px-6 py-3 font-bold rounded-full shadow-2xl transition-all active:scale-95 flex items-center gap-2 backdrop-blur-md ${isTracking
+              ? "bg-red-500 hover:bg-red-600 text-white"
+              : "bg-[#4F46E5] hover:bg-[#4338CA] text-white"
+            }`}
         >
-          {loadingLocation ? (
+          {loadingLocation && !isTracking ? (
             <>
               <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -62,12 +88,19 @@ export default function DashboardPage() {
               </svg>
               Locating...
             </>
+          ) : isTracking ? (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 002 0V8a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v4a1 1 0 002 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              Stop Tracking
+            </>
           ) : (
             <>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
               </svg>
-              Enable My Location
+              Start Live Tracking
             </>
           )}
         </button>
