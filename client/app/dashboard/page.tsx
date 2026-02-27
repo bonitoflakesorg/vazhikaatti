@@ -39,9 +39,9 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -479,7 +479,7 @@ export default function DashboardPage() {
         preAnnouncedRef.current = false;
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location]);
 
   // ─── Route Data Helpers ────────────────────────────────────────────────────
@@ -809,19 +809,57 @@ export default function DashboardPage() {
       />
 
       {/* Floating UI Container */}
-      <div className="absolute top-4 right-10 z-[1000] flex flex-col items-end gap-4">
-        {/* Start Journey Trigger */}
-        {!showJourneyPanel && (
+      <div className="absolute top-4 right-10 z-[1000] flex flex-col items-end gap-3">
+        {/* Top controls row: live tracking icon + journey trigger */}
+        <div className="flex items-center gap-2">
+          {/* Live Tracking Toggle Icon */}
           <button
-            onClick={() => setShowJourneyPanel(true)}
-            className="px-5 py-3 bg-white hover:bg-gray-100 text-gray-900 font-bold rounded-2xl shadow-xl transition-all active:scale-95 flex items-center gap-2 border border-gray-200"
+            onClick={handleFreeTrackingToggle}
+            disabled={loadingLocation}
+            title={isTracking ? "Stop Live Tracking" : "Start Live Tracking"}
+            className={`relative w-11 h-11 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-90 border-2 ${loadingLocation
+              ? "bg-gray-100 border-gray-300 cursor-not-allowed"
+              : isTracking
+                ? "bg-red-600 border-red-400 hover:bg-red-700"
+                : "bg-white border-gray-200 hover:bg-gray-50"
+              }`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-            Plan Journey
+            {loadingLocation ? (
+              <svg className="animate-spin h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            ) : isTracking ? (
+              /* Stop icon (square) — like stopping a recording */
+              <>
+                {/* Pulsing ring */}
+                <span className="absolute inset-0 rounded-full animate-ping bg-red-400 opacity-40" />
+                <svg className="w-4 h-4 text-white relative z-10" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="5" y="5" width="14" height="14" rx="2" />
+                </svg>
+              </>
+            ) : (
+              /* Record dot icon */
+              <svg className="w-5 h-5 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="7" />
+                <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+              </svg>
+            )}
           </button>
-        )}
+
+          {/* Start Journey Trigger */}
+          {!showJourneyPanel && (
+            <button
+              onClick={() => setShowJourneyPanel(true)}
+              className="px-5 py-3 bg-white hover:bg-gray-100 text-gray-900 font-bold rounded-2xl shadow-xl transition-all active:scale-95 flex items-center gap-2 border border-gray-200"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Chart My Path
+            </button>
+          )}
+        </div>
 
         {/* Journey Control Panel */}
         {showJourneyPanel && (
@@ -943,20 +981,11 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Floating UI Container for Report Issue */}
-      <div className="absolute top-20 right-10 z-[1000] flex flex-col items-end gap-4 mt-2">
-        <button
-          onClick={() => setShowReportModal(true)}
-          className="px-5 py-3 bg-emerald-400 hover:bg-emerald-500 text-gray-900 font-bold rounded-2xl shadow-xl shadow-emerald-500/30 transition-all active:scale-95 flex items-center gap-2 border border-emerald-300"
-        >
-          <span className="text-xl">✍️</span>
-          Report Issue
-        </button>
-      </div>
+
 
       {/* ─── Navigation Panel (Google Maps style) ─────────────────────────── */}
       {isNavigating && currentStep && (
-        <div className="absolute bottom-28 left-4 right-4 z-[1000] flex justify-center pointer-events-none">
+        <div className="absolute bottom-24 left-4 right-4 z-[1000] flex justify-center pointer-events-none">
           <div className="w-full max-w-lg pointer-events-auto">
             <NavigationPanel
               step={currentStep}
@@ -973,37 +1002,39 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Free Tracking Toggle (Bottom Center) */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-[1000]">
+      {/* Bottom Action Bar */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3">
+        {/* Flag a Hazard button */}
         <button
-          onClick={handleFreeTrackingToggle}
-          disabled={loadingLocation}
-          className={`px-8 py-4 rounded-3xl font-bold font-sans tracking-wide shadow-xl flex items-center gap-3 transition-all ${loadingLocation
-              ? "bg-gray-100 text-gray-500 cursor-not-allowed border-gray-200"
-              : isTracking
-                ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 active:scale-95 shadow-red-500/20"
-                : "bg-emerald-600 text-white border border-emerald-500 hover:bg-emerald-700 active:scale-95 shadow-emerald-600/30"
-            }`}
+          onClick={() => setShowReportModal(true)}
+          className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl font-bold text-sm tracking-wide shadow-2xl transition-all active:scale-95 hover:scale-[1.03]"
+          style={{
+            background: "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)",
+            color: "#fff",
+            boxShadow: "0 8px 24px rgba(239,68,68,0.35)",
+          }}
         >
-          {loadingLocation ? (
-            <>
-              <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Locating...
-            </>
-          ) : isTracking ? (
-            <>
-              <span className="text-xl">🛑</span>
-              Stop Tracking
-            </>
-          ) : (
-            <>
-              <span className="text-xl drop-shadow-md">📍</span>
-              Start Live Tracking
-            </>
-          )}
+          <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+            <line x1="4" y1="22" x2="4" y2="15" />
+          </svg>
+          Flag a Hazard
+        </button>
+
+        {/* Chart My Path button */}
+        <button
+          onClick={() => setShowJourneyPanel(true)}
+          className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl font-bold text-sm tracking-wide shadow-2xl transition-all active:scale-95 hover:scale-[1.03]"
+          style={{
+            background: "linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)",
+            color: "#fff",
+            boxShadow: "0 8px 24px rgba(99,102,241,0.35)",
+          }}
+        >
+          <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12h4l3-9 4 18 3-9h4" />
+          </svg>
+          Chart My Path
         </button>
       </div>
 
