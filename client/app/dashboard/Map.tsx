@@ -155,6 +155,30 @@ function createNextTurnIcon() {
   });
 }
 
+// Custom hazard pin for reported issues
+function createHazardIcon(rating: number) {
+  const isCritical = rating >= 4;
+  const outerColor = isCritical ? "bg-red-500/40" : "bg-orange-500/40";
+  const innerColor = isCritical ? "bg-red-600" : "bg-orange-500";
+
+  return L.divIcon({
+    className: "hazard-pin",
+    html: `
+      <div class="relative flex items-center justify-center w-8 h-8 cursor-pointer">
+        <div class="absolute w-full h-full rounded-full ${outerColor} animate-ping" style="animation-duration: 2s;"></div>
+        <div class="relative flex items-center justify-center w-5 h-5 ${innerColor} border-2 border-white rounded-full shadow-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white stroke-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+      </div>
+    `,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
+  });
+}
+
 interface MapProps {
   position: [number, number] | null;
   routes?: RouteOption[];
@@ -192,12 +216,6 @@ export default function Map({
   const pickedIcon = createPinIcon("#8b5cf6", "Picked");
   const userLocationIcon = createUserLocationIcon();
   const nextTurnIcon = createNextTurnIcon();
-
-  const getReviewIcon = (rating: number) => {
-    if (rating <= 2) return createPinIcon("#ef4444", "!"); // Red
-    if (rating === 3) return createPinIcon("#eab308", "!"); // Yellow
-    return createPinIcon("#10b981", "!"); // Emerald
-  };
 
   return (
     <div className="w-full h-full relative z-0">
@@ -265,26 +283,50 @@ export default function Map({
         {/* Review markers */}
         {reviews.map((review) => {
           if (!review.coordinates) return null;
-          const [lat, lng] = review.coordinates.split(',').map(Number);
+          const [lat, lng] = review.coordinates.split(",").map(Number);
           if (isNaN(lat) || isNaN(lng)) return null;
 
           return (
-            <Marker key={review.id} position={[lat, lng]} icon={getReviewIcon(review.rating)}>
-              <Popup>
-                <div className="flex flex-col gap-2 min-w-[200px] font-sans">
+            <Marker key={review.id} position={[lat, lng]} icon={createHazardIcon(review.rating)}>
+              <Popup className="rounded-xl overflow-hidden shadow-2xl border-0 p-0 m-0">
+                <div className="w-64 -m-3">
                   {review.image_url && (
-                    <img src={review.image_url} alt="Review" className="w-full h-32 object-cover rounded-lg" />
+                    <div className="w-full h-32 relative group">
+                      <img src={review.image_url} alt={review.title} className="w-full h-full object-cover rounded-t-xl" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                        <a href={review.image_url} target="_blank" rel="noreferrer" className="text-white text-xs font-bold px-3 py-1.5 bg-white/20 rounded-full border border-white/40 hover:bg-white/30 transition-colors">
+                          View Full Image
+                        </a>
+                      </div>
+                    </div>
                   )}
-                  <h3 className="font-bold text-gray-900 text-lg">{review.title}</h3>
-                  <div className="flex justify-between items-center bg-gray-50 p-1.5 rounded-lg border border-gray-100">
-                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">{review.category}</span>
-                    <span className="text-xs font-bold text-gray-700 flex items-center gap-1">
-                      {review.rating}/5 <span className="text-yellow-500 text-sm">★</span>
-                    </span>
+                  <div className={`p-4 ${review.image_url ? 'bg-white rounded-b-xl' : 'bg-white rounded-xl'} flex flex-col gap-2.5`}>
+                    <div className="flex justify-between items-start">
+                      <h3 className="font-bold text-gray-800 leading-tight">{review.title}</h3>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${review.rating >= 4 ? 'bg-red-100 text-red-600' :
+                          review.rating === 3 ? 'bg-orange-100 text-orange-600' :
+                            'bg-emerald-100 text-emerald-600'
+                        }`}>
+                        Severity: {review.rating}/5
+                      </span>
+                    </div>
+                    {review.description && (
+                      <p className="text-xs text-gray-600 leading-relaxed bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                        {review.description}
+                      </p>
+                    )}
+                    <div className="flex justify-between items-center mt-1">
+                      <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-full border border-gray-100">
+                        <span className="text-[10px]">📍</span>
+                        <span className="text-[10px] font-semibold text-gray-600 truncate max-w-[120px]" title={review.location || 'Unknown'}>
+                          {review.category || 'Hazard'}
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-gray-400 font-medium">
+                        {new Date(review.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600 my-1">{review.description}</p>
-                  <p className="text-xs text-gray-500 font-medium">📍 {review.location}</p>
-                  <p className="text-[10px] text-gray-400 text-right mt-1">{new Date(review.created_at).toLocaleDateString()}</p>
                 </div>
               </Popup>
             </Marker>
