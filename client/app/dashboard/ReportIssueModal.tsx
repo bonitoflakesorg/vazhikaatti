@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "../utils/supabase";
 
+
 const LocationPickerMap = dynamic(() => import("./LocationPickerMap"), {
   ssr: false,
   loading: () => (
@@ -220,7 +221,7 @@ export default function ReportIssueModal({ isOpen, onClose, userId, onSuccess }:
       };
 
       const validationResponse = await fetch(
-        "http://localhost:8000/validate",
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/validate`,
         {
           method: "POST",
           headers: {
@@ -241,9 +242,8 @@ export default function ReportIssueModal({ isOpen, onClose, userId, onSuccess }:
       // If validation fails → STOP
       if (!validationData.valid) {
         setErrorMsg(
-          `Validation Error: ${
-            validationData.reason ||
-            "Validation failed. Please check your input."
+          `Validation Error: ${validationData.reason ||
+          "Validation failed. Please check your input."
           }`
         );
         setIsSubmitting(false);
