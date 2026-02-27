@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+# from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional
 import requests
@@ -7,7 +7,31 @@ from io import BytesIO
 import torch
 from transformers import CLIPProcessor, CLIPModel
 
-app = FastAPI()
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(
+    title="Vazhikaatti API",
+    description="API for Vazhikaatti",
+    version="1.0.0",
+)
+
+# CORS setup
+origins = [
+    "http://localhost:3000",  # React default
+    "http://127.0.0.1:3000",
+    "https://your-deployed-client-url.com",  # Add your deployed frontend URL here
+
+]
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # List of allowed origins
+    allow_credentials=True,  # Allow cookies to be included
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, PUT, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
  
 import os
 @app.on_event("startup")
@@ -46,12 +70,12 @@ def load_model():
 
 # Category → descriptive text labels for CLIP
 CATEGORY_LABELS = {
-    "pothole":        "pothole or damaged road surface",
-    "flooding":       "flooded street or waterlogged road",
-    "stray_dogs":     "stray dog on street",
-    "poor_lighting":  "dark street with poor visibility at night",
-    "construction":   "road construction or building work site",
     "harassment":     "crowded alley or isolated dangerous street",
+    "stray dogs":     "stray dog on street",
+    "potholes":       "pothole or damaged road surface",
+    "construction":   "road construction or building work site",
+    "poor lighting":  "dark street with poor visibility at night",
+    "flooding":       "flooded street or waterlogged road",
     "accident":       "vehicle accident or road crash scene",
 }
 
@@ -72,7 +96,7 @@ class ReportRequest(BaseModel):
 
 @app.post("/validate")
 def validate_report(report: ReportRequest):
-    category = report.category.lower()
+    category = report.category.lower().strip()
 
     # No image → reject
     if not report.image_url:
