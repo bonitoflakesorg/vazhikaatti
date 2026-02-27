@@ -781,7 +781,7 @@ export default function DashboardPage() {
           .from("sos_sessions")
           .update({ lat: pos.coords.latitude, lng: pos.coords.longitude })
           .eq("id", sessionId)
-          .then(() => {});
+          .then(() => { });
       },
       null,
       { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
@@ -870,7 +870,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="relative w-full h-screen overflow-hidden font-sans">
+    <main className="relative w-full h-[100dvh] overflow-hidden font-sans">
       {/* Map filling the entire screen */}
       <div className="absolute inset-0 z-0 bg-gray-900">
         <Map
@@ -1130,7 +1130,7 @@ export default function DashboardPage() {
       )}
 
       {/* Bottom Action Bar */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] w-[95%] max-w-[400px] flex justify-center gap-2.5">
+      <div className="absolute bottom-8 md:bottom-6 left-1/2 -translate-x-1/2 z-[1000] w-[95%] max-w-[400px] flex justify-center gap-2.5 pb-[env(safe-area-inset-bottom)]">
         {/* Flag a Hazard button */}
         <button
           onClick={() => {
