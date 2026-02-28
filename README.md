@@ -1,5 +1,6 @@
 # Vazhikaatti 🌿
 ### *Navigate Smarter. Stay Safer.*
+(Please view in mobile view)
 
 > A community-driven safety map that helps you discover nearby hazards, report issues, and make informed travel decisions in real time.
 
