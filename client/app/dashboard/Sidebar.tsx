@@ -233,7 +233,7 @@ export default function Sidebar({ onLiveLocationClick, userProfile, currentLocat
         </div>
 
         {/* Footer */}
-        <div className="mt-auto pt-4 pb-2 border-t border-gray-200">
+        <div className="mt-auto pt-4 pb-10 border-t border-gray-200">
           <button
             onClick={async () => {
               const { supabase } = await import("../utils/supabase");

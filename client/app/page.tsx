@@ -1,7 +1,26 @@
 "use client";
+
+import { useState, useEffect } from "react";
 import Image from "next/image";
+import { HashLoader } from "react-spinners";
 
 export default function Home() {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 3000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-white gap-6">
+        <HashLoader color="#10b981" size={50} />
+       
+      </div>
+    );
+  }
+
   return (
     <main className="relative min-h-screen w-full flex items-center justify-center">
       {/* Hero Background */}
