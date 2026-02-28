@@ -42,114 +42,83 @@ In cities, people face everyday risks — stray dogs, poor lighting, flooded roa
 ---
 
 ## 📸 Screenshots
-
-### Landing Page
-![Landing Page](screenshots/landing.jpg)
-*Vazhikaatti — Navigate Smarter. Stay Safer.*
-![Screenshot_20260228_071202](https://github.com/user-attachments/assets/caf7032a-a465-4689-9bef-d263cf69afa4)
-
-### Sign In
-![Sign In](screenshots/signin.jpg)
-*Google OAuth login screen with the Vazhikaatti mascot*
-![Screenshot_20260228_071221](https://github.com/user-attachments/assets/8f722068-64ae-4055-a54f-5c97155b266f)
-
-### Profile Setup
-![Profile Setup](screenshots/profile.jpg)
-*Onboarding profile completion screen guided by the Vazhikaatti owl*
-![Screenshot_20260228_071314](https://github.com/user-attachments/assets/d6a42fab-9d21-48bd-b155-4295461677d1)
-
-### Live Hazard Map
-![Hazard Map](screenshots/map_overview.jpg)
-*![Screenshot_20260228_071334](https://github.com/user-attachments/assets/90856a7a-04f0-4bdc-8cb5-c8f8b236fb18)
-Dashboard map showing live hazard markers across Kalamassery, Kochi*
-
-### Location Enabled View
-![Location Enabled](screenshots/map_location.jpg)
-*User location shown with proximity radius and nearby hazard markers*
-![Screenshot_20260228_071347](https://github.com/user-attachments/assets/6e0a9545-adda-48f4-9956-568acb79ae43)
-
-### Journey Mode – Route Planning
-![Plan Route](screenshots/plan_route.jpg)
-*Pl![Screenshot_20260228_071353](https://github.com/user-attachments/assets/eb7dc213-63c6-4219-bc11-68d3f61d6071)
-an Rout![Screenshot_20260228_071425](https://github.com/user-attachments/assets/694beedc-69d1-4cc4-9c66-90cea2890aa7)
-e dialog with start and destination input*
-
-### Journey Mode – Route Results
-![Route Results](screenshots/route_results.jpg)
-*3 routes found with![Screenshot_20260228_071432](https://github.com/user-attachments/assets/ca3e6834-9a04-4ae1-a02a-8948e4086cc2)
- distance, duration, and steps displayed*
-
-### Journey Mode – Route on Map
-![Route Map](screenshots/route_map.jpg)
-*Routes rendered on map with hazard markers along the path*
-![Screenshot_20260228_071440](https://github.com/user-attachments/assets/2b78384f-ceaa-4ccb-8345-69174f133218)
-
-### Hazard Popup – Stray Dogs
-![Stray Dogs Popup](screenshots/popup_dogs.jpg)
-*Report popup sho![Screenshot_20260228_071511](https://github.com/user-attachments/assets/e4ab6f7c-784b-46c2-b4e0-922ea9d4c854)
-wing stray dog sighting with severity rating*
-
-### Hazard Popup – Poor Lighting
-![Poor Lighting Popup](screenshots/popup_lighting.jpg)
-*Report popup showing poor lighting alert along a route*
-![Screenshot_20260228_071522](https://github.com/user-attachments/assets/942d219b-09d9-4665-8be7-f3e8afa5a1ca)
-
-### My Reports – Card View
-![My Repo![Screenshot_20260228_073224](https://github.com/user-attachments/assets/8cf789cf-43f4-4d4e-bad7-acd4e935785b)
-rts](screenshots/my_reports_1.jpg)
-*User's submitted reports with category tag, severity stars, and location*
-
-### My Reports – Edit/Delete
-![My Reports Edit](screenshots/my_reports_2.jpg)
-*Report management with Edit and Delete actions*
-![Screenshot_20260228_073231](https://github.com/user-attachments/assets/131ea10c-d331-4dce-a542-defafd206887)
+In [SCREENSHOTS.md](https://github.com/bonitoflakesorg/vazhikaatti/blob/main/SCREENSHOTS.md)
 
 ---
 
 ## 🎥 Demo Video
 
-> 📹 [Watch Demo on YouTube](#) *(add your link here)*
+> 📹 [Watch Demo Video](https://drive.google.com/file/d/1-W5fl9lRgnHAFe1GFzuBqO2KyDyUqjZM/view?usp=drivesdk) 
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    USER BROWSER                     │
-│                                                     │
-│   Next.js 14 (TypeScript) + Leaflet.js              │
-│   ┌──────────┐  ┌──────────┐  ┌─────────────────┐  │
-│   │  Map UI  │  │ Report   │  │  Journey Mode   │  │
-│   │(Leaflet) │  │  Form    │  │  (Route Plan)   │  │
-│   └────┬─────┘  └────┬─────┘  └────────┬────────┘  │
-└────────┼─────────────┼─────────────────┼────────────┘
-         │             │                 │
-         ▼             ▼                 ▼
-┌─────────────────────────────────────────────────────┐
-│               FastAPI Backend (Python)              │
-│                                                     │
-│   ┌──────────────┐     ┌────────────────────────┐  │
-│   │  Report API  │     │  CLIP Model (OpenAI)   │  │
-│   │  (CRUD ops)  │     │  Image Classification  │  │
-│   └──────┬───────┘     └────────────────────────┘  │
-│          │                                          │
-│   ┌──────▼───────┐     ┌────────────────────────┐  │
-│   │   Database   │     │  Safety Score Engine   │  │
-│   │  (Reports,   │     │  (Proximity + Severity │  │
-│   │   Users)     │     │   + Recency)           │  │
-│   └──────────────┘     └────────────────────────┘  │
-└────────────────────────────┬────────────────────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              ▼              ▼              ▼
-     ┌──────────────┐ ┌──────────┐ ┌────────────────┐
-     │ OpenStreetMap│ │ ORS API  │ │  Google OAuth  │
-     │  (Map Tiles) │ │ (Routes) │ │    (Auth)      │
-     └──────────────┘ └──────────┘ └────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                   FRONTEND — Next.js 14 (TypeScript)             │
+│                                                                  │
+│  ┌─────────────┐   ┌──────────────┐   ┌───────────────────────┐ │
+│  │  Map View   │   │ Report Form  │   │    Journey Mode       │ │
+│  │ (Leaflet.js)│   │ (image +     │   │  (Route Planning UI)  │ │
+│  │             │   │  metadata)   │   │                       │ │
+│  └──────┬──────┘   └──────┬───────┘   └──────────┬────────────┘ │
+│         │                 │                       │              │
+│         ▼                 ▼                       ▼              │
+│  ┌─────────────┐   ┌──────────────┐   ┌───────────────────────┐ │
+│  │OpenStreetMap│   │   Supabase   │   │  OpenRouteService API │ │
+│  │ (Map Tiles) │   │  JS Client   │   │  (Fetch 3 routes,     │ │
+│  │             │   │              │   │   walking directions) │ │
+│  └─────────────┘   └──────┬───────┘   └───────────────────────┘ │
+│                           │                                      │
+└───────────────────────────┼──────────────────────────────────────┘
+                            │  (Auth + DB reads + Image upload)
+                            ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                           SUPABASE                               │
+│                                                                  │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────────────┐ │
+│  │  Auth        │   │  Database    │   │   Storage            │ │
+│  │  (Google     │   │  (Reports    │   │   (Hazard images     │ │
+│  │   OAuth)     │   │   + Users)   │   │    uploaded by users)│ │
+│  └──────────────┘   └──────────────┘   └──────────────────────┘ │
+└──────────────────────────────────────────────────────────────────┘
+                            │
+          (Image URL sent to backend for validation)
+                            │
+                            ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    BACKEND — FastAPI (Python)                    │
+│                                                                  │
+│   ┌────────────────────────────────────────────────────────────┐ │
+│   │                  CLIP Model (OpenAI)                       │ │
+│   │                                                            │ │
+│   │  • Receives image URL from frontend                        │ │
+│   │  • Validates image matches reported category               │ │
+│   │    e.g. "stray dog" photo <-> "Stray Dogs" category        │ │
+│   │  • Returns validation result -> frontend proceeds/rejects  │ │
+│   └────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Data Flow — Submitting a Report
+
+```
+User submits report
+      │
+      ├─ 1 ──▶ Image uploaded to Supabase Storage       (frontend)
+      │
+      ├─ 2 ──▶ Image URL + category sent to FastAPI     (frontend → backend)
+      │             └─▶ CLIP model validates image matches category
+      │             └─▶ Returns: { valid: true / false }
+      │
+      ├─ 3 ──▶ If valid → report saved to Supabase DB   (frontend)
+      │
+      └─ 4 ──▶ Map refreshes with new hazard marker     (Leaflet.js)
 ```
 
 ---
+
 
 ## 🚀 Installation & Setup
 
