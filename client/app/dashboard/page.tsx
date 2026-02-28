@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import { HashLoader } from "react-spinners";
 import type { RouteOption, RouteStep } from "./Map";
 import { supabase } from "../utils/supabase";
 import ReportIssueModal from "./ReportIssueModal";
@@ -22,14 +23,9 @@ export type Review = {
   created_at: string;
 };
 
-const Map = dynamic(() => import("./Map"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex w-full h-screen items-center justify-center bg-gray-900">
-      <span className="text-xl font-semibold text-white/50">Loading Map...</span>
-    </div>
-  ),
-});
+const Map = dynamic(() => import("./Map"), { ssr: false });
+
+
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -316,6 +312,16 @@ function LocationAutocomplete({
 // ─── Dashboard Page ──────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setInitialLoading(false);
+    }, 5000);
+    return () => clearTimeout(timer);
+    <HashLoader color="#10b981" size={60} />
+  }, []);
+
   const [profileLoading, setProfileLoading] = useState(true);
   const [needsProfile, setNeedsProfile] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -341,6 +347,7 @@ export default function DashboardPage() {
   const [routes, setRoutes] = useState<RouteOption[]>([]);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
   const [mapBounds, setMapBounds] = useState<[number, number][] | null>(null);
+  const [routeListExpanded, setRouteListExpanded] = useState(true);
 
   // Navigation States
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -354,6 +361,10 @@ export default function DashboardPage() {
   const currentStepRef = useRef(0);
   const preAnnouncedRef = useRef(false);
   const arrivedRef = useRef(false);
+
+  // SOS live-tracking refs
+  const sosSessionIdRef = useRef<string | null>(null);
+  const sosWatchIdRef = useRef<number | null>(null);
 
   // Issues / Reviews State
   const [showReportModal, setShowReportModal] = useState(false);
@@ -413,6 +424,7 @@ export default function DashboardPage() {
   useEffect(() => {
     return () => {
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      if (sosWatchIdRef.current !== null) navigator.geolocation.clearWatch(sosWatchIdRef.current);
       if (typeof window !== "undefined" && window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
@@ -608,6 +620,7 @@ export default function DashboardPage() {
         );
 
         setRoutes(fetchedRoutes);
+        setRouteListExpanded(true);
         const allBounds: [number, number][] = [];
         fetchedRoutes.forEach((r) => allBounds.push(...r.geometry));
         setMapBounds(allBounds);
@@ -741,35 +754,93 @@ export default function DashboardPage() {
     }
   };
 
+  // ─── Emergency SOS (live tracking via Supabase) ────────────────────────────
+  const openSOSWhatsApp = (trackingUrl: string) => {
+    const recipient = "918078580755";
+    const message = encodeURIComponent(
+      `🚨 EMERGENCY! I'm in danger, please help me immediately!\n\nTrack my LIVE location (updates as I move):\n${trackingUrl}`
+    );
+    window.open(`https://wa.me/${recipient}?text=${message}`, "_blank");
+  };
+
+  const startSOSTracking = async (initialLat: number, initialLng: number) => {
+    // Insert a new session row; Supabase returns the generated UUID
+    const { data, error } = await supabase
+      .from("sos_sessions")
+      .insert({ lat: initialLat, lng: initialLng })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      console.error("SOS session insert failed", error);
+      return null;
+    }
+
+    const sessionId: string = data.id;
+    sosSessionIdRef.current = sessionId;
+
+    // Keep the row updated as the user moves
+    if (sosWatchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(sosWatchIdRef.current);
+    }
+    const wid = navigator.geolocation.watchPosition(
+      (pos) => {
+        supabase
+          .from("sos_sessions")
+          .update({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+          .eq("id", sessionId)
+          .then(() => { });
+      },
+      null,
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
+    );
+    sosWatchIdRef.current = wid;
+
+    return sessionId;
+  };
+
+  const handleEmergency = () => {
+    const origin = window.location.origin;
+
+    const proceed = async (lat: number, lng: number) => {
+      const sessionId = await startSOSTracking(lat, lng);
+      const trackingUrl = sessionId
+        ? `${origin}/track/${sessionId}`
+        : `https://maps.google.com/?q=${lat},${lng}`;
+      openSOSWhatsApp(trackingUrl);
+    };
+
+    const fallbackNoGps = () => {
+      const recipient = "918078580755";
+      const message = encodeURIComponent(
+        `🚨 EMERGENCY! I'm in danger, please help me immediately!\n\n(GPS unavailable — could not share location)`
+      );
+      window.open(`https://wa.me/${recipient}?text=${message}`, "_blank");
+    };
+
+    if (location) {
+      proceed(location[0], location[1]);
+      return;
+    }
+    if (!navigator.geolocation) { fallbackNoGps(); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => proceed(pos.coords.latitude, pos.coords.longitude),
+      fallbackNoGps,
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  };
+
   // ─── Derived navigation values ─────────────────────────────────────────────
   const activeRoute = getActiveRoute();
   const isNavigating = selectedRouteIndex !== null && isTracking && activeRoute?.steps && activeRoute.steps.length > 0;
   const currentStep = activeRoute?.steps?.[currentStepIndex] ?? null;
   const nextTurnPoint = getNextTurnPoint();
 
-  if (profileLoading) {
+  if (initialLoading || profileLoading) {
     return (
-      <div className="flex w-full h-screen items-center justify-center bg-gray-900" style={{ fontFamily: "var(--font-josefin-sans), 'Josefin Sans', sans-serif" }}>
-        <div className="flex flex-col items-center gap-4">
-          <span className="loader" />
-          <p className="text-white/80 animate-pulse font-medium tracking-wide">
-            Loading dashboard...
-          </p>
-        </div>
-        <style>{`
-          .loader {
-            width: 32px;
-            height: 32px;
-            border: 3px solid rgba(255, 255, 255, 0.1);
-            border-top-color: #10b981;
-            border-radius: 50%;
-            display: inline-block;
-            animation: spin 0.8s linear infinite;
-          }
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
+      <div className="flex w-full h-screen flex-col items-center justify-center bg-white gap-6">
+        <HashLoader color="#10b981" size={60} />
+
       </div>
     );
   }
@@ -789,9 +860,9 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="relative w-full h-screen overflow-hidden font-sans">
+    <main className="relative w-full h-[100dvh] overflow-hidden font-sans">
       {/* Map filling the entire screen */}
-      <div className="absolute inset-0 z-0 bg-gray-900">
+      <div className="absolute inset-0 z-0 bg-white">
         <Map
           position={location}
           routes={routes}
@@ -821,6 +892,8 @@ export default function DashboardPage() {
         userProfile={profileForm}
         currentLocation={location}
         onLiveLocationClick={handleFreeTrackingToggle}
+        userId={userId || undefined}
+        onReviewsChanged={fetchReviews}
       />
 
       {/* Picking Location Banner */}
@@ -842,11 +915,21 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Floating Mascot — bottom left, above sidebar button */}
-      <div className="absolute bottom-24 left-4 z-[1000] flex flex-col items-start gap-1 pointer-events-none">
+      {/* Emergency + Mascot — bottom left */}
+      <div className="absolute bottom-24 left-4 z-[1000] flex flex-col items-start gap-2">
+        {/* Emergency SOS Button */}
+        <button
+          onClick={handleEmergency}
+          title="Emergency SOS — send WhatsApp live-location alert"
+          className="w-12 h-12 rounded-full bg-red-600 hover:bg-red-700 active:scale-90 flex items-center justify-center ring-2 ring-white ring-offset-1 shadow-2xl transition-transform"
+          style={{ boxShadow: "0 0 0 4px rgba(220,38,38,0.3), 0 4px 20px rgba(220,38,38,0.55)", animation: "sosPulse 2.2s ease-in-out infinite" }}
+        >
+          <Image src="/emergency.png" alt="Emergency SOS" width={28} height={28} className="object-contain drop-shadow-md" />
+        </button>
+
         {/* Speech bubble */}
         <div
-          className="px-3 py-1.5 rounded-2xl rounded-bl-none text-sm font-semibold text-indigo-900 shadow-lg"
+          className="pointer-events-none px-3 py-1.5 rounded-2xl rounded-bl-none text-sm font-semibold text-indigo-900 shadow-lg"
           style={{
             background: "rgba(255,255,255,0.92)",
             backdropFilter: "blur(8px)",
@@ -859,7 +942,7 @@ export default function DashboardPage() {
           Stay safe out there! 🦉
         </div>
         {/* Mascot */}
-        <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-white shadow-xl ml-1">
+        <div className="pointer-events-none w-12 h-12 rounded-full overflow-hidden ring-2 ring-white shadow-xl ml-1">
           <Image
             src="/mascot.png"
             alt="Vazhikaatti Owl Mascot"
@@ -869,6 +952,12 @@ export default function DashboardPage() {
           />
         </div>
       </div>
+      <style>{`
+        @keyframes sosPulse {
+          0%, 100% { box-shadow: 0 0 0 3px rgba(220,38,38,0.35), 0 4px 16px rgba(220,38,38,0.5); }
+          50% { box-shadow: 0 0 0 8px rgba(220,38,38,0.15), 0 4px 24px rgba(220,38,38,0.6); }
+        }
+      `}</style>
 
       {/* Floating UI Container */}
       <div className="absolute top-4 right-10 z-[1000] flex flex-col items-end gap-3">
@@ -942,69 +1031,96 @@ export default function DashboardPage() {
         )}
 
         {routes.length > 0 && !showJourneyPanel && (
-          <div className="p-4 bg-white/95 backdrop-blur-md border border-gray-100 rounded-2xl shadow-xl flex flex-col gap-3 w-80 max-h-[70vh] overflow-y-auto">
-            <h3 className="font-bold text-gray-800 border-b pb-2 flex justify-between items-center sticky top-0 bg-white/95 z-10">
-              <span>{routes.length} Route{routes.length > 1 ? 's' : ''} Found</span>
-              <button onClick={() => setShowJourneyPanel(true)} className="text-xs text-emerald-600 font-semibold hover:underline">Edit</button>
-            </h3>
-            {selectedRouteIndex === null ? (
-              <div className="flex flex-col gap-3">
-                <p className="text-sm text-gray-600 font-medium">Select a route to begin navigation:</p>
-                {routes.map((route, i) => {
-                  const colors = ["border-indigo-500 bg-indigo-50", "border-teal-500 bg-teal-50", "border-rose-500 bg-rose-50"];
-                  const textColors = ["text-indigo-700", "text-teal-700", "text-rose-700"];
-                  const colorClass = colors[i % colors.length];
-                  const textColorClass = textColors[i % textColors.length];
-
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => handleRouteSelect(i)}
-                      className={`flex flex-col gap-2 p-3 rounded-xl border-2 transition-all hover:scale-[1.02] active:scale-[0.98] text-left cursor-pointer ${colorClass}`}
-                    >
-                      <div className="flex justify-between items-center w-full">
-                        <span className={`font-bold ${textColorClass}`}>Route {i + 1}</span>
-                        <span className={`text-xs font-semibold px-2 py-1 rounded bg-white/60 ${textColorClass} flex items-center gap-1`}>
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-                            <path d="M13.5 5.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm-1.45 1.72L9 10.5H6.5a1 1 0 0 0 0 2H9.5l1-2.5L9 13v5a1 1 0 0 0 2 0v-4l2-2v6a1 1 0 0 0 2 0v-7l1.5 2h2a1 1 0 0 0 0-2H17l-2-3.5a2 2 0 0 0-2.95-.28z" />
-                          </svg>
-                          {Math.round(route.duration / 60)} mins
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-sm text-gray-700 font-medium">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-500">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                        </svg>
-                        {(route.distance / 1000).toFixed(1)} km walking
-                      </div>
-                      {route.steps.length > 0 && (
-                        <p className="text-xs text-gray-500">{route.steps.length} steps</p>
-                      )}
-                    </button>
-                  );
-                })}
+          <div className="bg-white/95 backdrop-blur-md border border-gray-100 rounded-2xl shadow-xl flex flex-col w-80 overflow-hidden">
+            {/* ── Header (always visible) ── */}
+            <div className="px-4 pt-3 pb-3 flex justify-between items-center">
+              <span className="font-bold text-gray-800">
+                {routes.length} Route{routes.length > 1 ? "s" : ""} Found
+              </span>
+              <div className="flex items-center gap-1.5">
+                {/* Collapse / Expand */}
+                <button
+                  onClick={() => setRouteListExpanded((e) => !e)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+                  title={routeListExpanded ? "Minimise" : "Expand"}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className={`h-4 w-4 transition-transform duration-200 ${routeListExpanded ? "" : "rotate-180"}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setShowJourneyPanel(true)}
+                  className="text-xs text-emerald-600 font-semibold hover:underline px-1"
+                >
+                  Edit
+                </button>
               </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <p className="text-sm font-semibold text-green-600 flex items-center gap-1.5">
-                  <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                  </span>
-                  {arrived ? "Arrived!" : "Navigating..."}
-                </p>
-                <div className="flex gap-2 text-xs font-medium text-gray-700">
-                  <span className="bg-gray-100 px-2 py-1.5 rounded-md border border-gray-200 flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-indigo-500">
-                      <path d="M13.5 5.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm-1.45 1.72L9 10.5H6.5a1 1 0 0 0 0 2H9.5l1-2.5L9 13v5a1 1 0 0 0 2 0v-4l2-2v6a1 1 0 0 0 2 0v-7l1.5 2h2a1 1 0 0 0 0-2H17l-2-3.5a2 2 0 0 0-2.95-.28z" />
-                    </svg>
-                    {formatDuration(getRemainingDuration())}
-                  </span>
-                  <span className="bg-gray-100 px-2 py-1.5 rounded-md border border-gray-200">
-                    {formatDistance(getRemainingDistance())}
-                  </span>
-                </div>
-                <button onClick={clearJourney} className="mt-2 text-xs font-bold text-red-500 hover:text-red-700 text-left w-fit transition-colors">Cancel Journey</button>
+            </div>
+
+            {/* ── Collapsible body ── */}
+            {routeListExpanded && (
+              <div className="px-4 pb-4 flex flex-col gap-3 max-h-[42vh] overflow-y-auto border-t border-gray-100 pt-3">
+                {selectedRouteIndex === null ? (
+                  <>
+                    <p className="text-sm text-gray-600 font-medium">Select a route to begin navigation:</p>
+                    {routes.map((route, i) => {
+                      const colors = ["border-indigo-500 bg-indigo-50", "border-teal-500 bg-teal-50", "border-rose-500 bg-rose-50"];
+                      const textColors = ["text-indigo-700", "text-teal-700", "text-rose-700"];
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => handleRouteSelect(i)}
+                          className={`flex flex-col gap-2 p-3 rounded-xl border-2 transition-all hover:scale-[1.02] active:scale-[0.98] text-left cursor-pointer ${colors[i % colors.length]}`}
+                        >
+                          <div className="flex justify-between items-center w-full">
+                            <span className={`font-bold ${textColors[i % textColors.length]}`}>Route {i + 1}</span>
+                            <span className={`text-xs font-semibold px-2 py-1 rounded bg-white/60 ${textColors[i % textColors.length]} flex items-center gap-1`}>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                                <path d="M13.5 5.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm-1.45 1.72L9 10.5H6.5a1 1 0 0 0 0 2H9.5l1-2.5L9 13v5a1 1 0 0 0 2 0v-4l2-2v6a1 1 0 0 0 2 0v-7l1.5 2h2a1 1 0 0 0 0-2H17l-2-3.5a2 2 0 0 0-2.95-.28z" />
+                              </svg>
+                              {Math.round(route.duration / 60)} mins
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-sm text-gray-700 font-medium">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-500">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                            </svg>
+                            {(route.distance / 1000).toFixed(1)} km walking
+                          </div>
+                          {route.steps.length > 0 && (
+                            <p className="text-xs text-gray-500">{route.steps.length} steps</p>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm font-semibold text-green-600 flex items-center gap-1.5">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                      </span>
+                      {arrived ? "Arrived!" : "Navigating..."}
+                    </p>
+                    <div className="flex gap-2 text-xs font-medium text-gray-700">
+                      <span className="bg-gray-100 px-2 py-1.5 rounded-md border border-gray-200 flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-indigo-500">
+                          <path d="M13.5 5.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm-1.45 1.72L9 10.5H6.5a1 1 0 0 0 0 2H9.5l1-2.5L9 13v5a1 1 0 0 0 2 0v-4l2-2v6a1 1 0 0 0 2 0v-7l1.5 2h2a1 1 0 0 0 0-2H17l-2-3.5a2 2 0 0 0-2.95-.28z" />
+                        </svg>
+                        {formatDuration(getRemainingDuration())}
+                      </span>
+                      <span className="bg-gray-100 px-2 py-1.5 rounded-md border border-gray-200">
+                        {formatDistance(getRemainingDistance())}
+                      </span>
+                    </div>
+                    <button onClick={clearJourney} className="mt-2 text-xs font-bold text-red-500 hover:text-red-700 text-left w-fit transition-colors">Cancel Journey</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1033,7 +1149,7 @@ export default function DashboardPage() {
       )}
 
       {/* Bottom Action Bar */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] w-[95%] max-w-[400px] flex justify-center gap-2.5">
+      <div className="absolute bottom-8 md:bottom-6 left-1/2 -translate-x-1/2 z-[1000] w-[95%] max-w-[400px] flex justify-center gap-2.5 pb-[env(safe-area-inset-bottom)]">
         {/* Flag a Hazard button */}
         <button
           onClick={() => {
